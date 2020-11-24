@@ -1,0 +1,10 @@
+{
+  "name": "collaborative-sensing-simulator",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "ssh://git@github.com/sat0yu/collaborative-sensing-simulator.git",
+  "license": "MIT",
+  "devDependencies": {
+    "parcel": "^2.0.0-beta.1"
+  }
+}
