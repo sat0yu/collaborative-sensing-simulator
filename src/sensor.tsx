@@ -40,7 +40,7 @@ export class Sensor implements Object {
     const result =
       Math.pow(this.r + radius, 2) >=
       Math.pow(this.x - center.x, 2) + Math.pow(this.y - center.y, 2);
-    console.log(this.id, result);
+    // console.log(this.id, result);
     if (this.lastState == result) {
       return null;
     }

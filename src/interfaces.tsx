@@ -11,3 +11,14 @@ export interface BoundingCircle {
   center: Point;
   radius: number;
 }
+
+export interface Message {
+  id: string;
+  body: any;
+}
+
+interface Record {
+  point: Point;
+  messages: Message[];
+}
+export type RecordList = Record[];

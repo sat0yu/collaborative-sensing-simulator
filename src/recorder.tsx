@@ -6,23 +6,12 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Point } from "./interfaces";
+import { RecordList as IRecordList, Message, Point } from "./interfaces";
 import { Resident } from "./resident";
 import { Room } from "./room";
 import { Sensor } from "./sensor";
 
-interface Message {
-  id: string;
-  body: any;
-}
-
-interface Record {
-  point: Point;
-  messages: Message[];
-}
-export type RecordList = Record[];
-
-const RecordList: FunctionComponent<{ value: RecordList }> = ({ value }) => {
+const RecordList: FunctionComponent<{ value: IRecordList }> = ({ value }) => {
   const [isOpen, setIsOpen] = useState(false);
   const toggle = useCallback(() => setIsOpen((current) => !current), [
     setIsOpen,
@@ -37,9 +26,9 @@ const RecordList: FunctionComponent<{ value: RecordList }> = ({ value }) => {
   );
 };
 
-const useMouseCapture = (addRecordList: (recordList: RecordList) => void) => {
+const useMouseCapture = (addRecordList: (recordList: IRecordList) => void) => {
   const [recordMode, setRecordMode] = useState(false);
-  const [seq, setSeq] = useState([] as RecordList);
+  const [seq, setSeq] = useState([] as IRecordList);
 
   const onMouseDown = useCallback(() => {
     setRecordMode(true);
@@ -48,13 +37,17 @@ const useMouseCapture = (addRecordList: (recordList: RecordList) => void) => {
 
   const onMouseMove = useCallback(
     (
-      { clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>,
+      { clientX, clientY }: MouseEvent<HTMLCanvasElement>,
+      { x: offsetX, y: offsetY }: Point,
       messages: Message[] = []
     ) => {
       if (!recordMode) {
         return;
       }
-      setSeq((prev) => [...prev, { point: { x, y }, messages }]);
+      setSeq((prev) => [
+        ...prev,
+        { point: { x: clientX - offsetX, y: clientY - offsetY }, messages },
+      ]);
     },
     [recordMode, setSeq]
   );
@@ -88,8 +81,8 @@ interface RecorderProps {
   height: number;
   room: Room;
   sensors: Sensor[];
-  addRecordList(recordList: RecordList): void;
-  recordLists: RecordList[];
+  addRecordList(recordList: IRecordList): void;
+  recordLists: IRecordList[];
 }
 
 export const Recorder: React.FunctionComponent<RecorderProps> = ({
@@ -101,12 +94,6 @@ export const Recorder: React.FunctionComponent<RecorderProps> = ({
   recordLists,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const [bcRect, setBCRect] = useState({
-    left: 0,
-    top: 0,
-    width,
-    height,
-  });
 
   const [
     recordMode,
@@ -126,11 +113,10 @@ export const Recorder: React.FunctionComponent<RecorderProps> = ({
 
   useEffect(() => {
     const ctx = useContext(ref);
-    setBCRect(ctx.canvas.getBoundingClientRect());
     ctx.canvas.height = height;
     ctx.canvas.width = width;
     resetCanvas(ctx);
-  }, [ref, height, width, resetCanvas, setBCRect]);
+  }, [ref, height, width, resetCanvas]);
 
   const onMouseMove = useCallback(
     (event: MouseEvent<HTMLCanvasElement>) => {
@@ -139,10 +125,14 @@ export const Recorder: React.FunctionComponent<RecorderProps> = ({
       }
       const ctx = useContext(ref);
       resetCanvas(ctx);
+      const {
+        left: offsetX,
+        top: offsetY,
+      } = ctx.canvas.getBoundingClientRect();
       const resident = new Resident({
         center: {
-          x: event.clientX - bcRect.left,
-          y: event.clientY - bcRect.top,
+          x: event.clientX - offsetX,
+          y: event.clientY - offsetY,
         },
         radius: 20,
         color: "blue",
@@ -152,9 +142,9 @@ export const Recorder: React.FunctionComponent<RecorderProps> = ({
         const result = s.probe(resident);
         return result == null ? acc : [...acc, { id: s.id, body: result }];
       }, [] as Message[]);
-      onMouseMoveMC(event, messages);
+      onMouseMoveMC(event, { x: offsetX, y: offsetY }, messages);
     },
-    [ref, bcRect, recordMode, onMouseMoveMC, sensors, resetCanvas]
+    [ref, recordMode, onMouseMoveMC, sensors, resetCanvas]
   );
 
   const onMouseUp = useCallback(() => {

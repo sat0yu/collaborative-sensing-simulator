@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { Recorder, RecordList } from "./recorder";
+import { RecordList } from "./interfaces";
+import { Recorder } from "./recorder";
 import { Room } from "./room";
 import { Sensor } from "./sensor";
+import { Simulator } from "./simulator";
 
 export const App = () => {
   const [recordLists, setRecordLists] = useState([] as RecordList[]);
@@ -31,6 +33,16 @@ export const App = () => {
           room={room}
           sensors={sensors}
           addRecordList={addRecordList}
+          recordLists={recordLists}
+        />
+      </section>
+      <section>
+        <h1>Simulator</h1>
+        <Simulator
+          width={500}
+          height={500}
+          room={room}
+          sensors={sensors}
           recordLists={recordLists}
         />
       </section>
