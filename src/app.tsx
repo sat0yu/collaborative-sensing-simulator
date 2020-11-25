@@ -7,9 +7,9 @@ import React, {
   useState,
 } from "react";
 
-const useMouseCapture = (addRecordList: (recordList: Record[]) => void) => {
+const useMouseCapture = (addRecordList: (recordList: RecordList) => void) => {
   const [recordMode, setRecordMode] = useState(false);
-  const [seq, setSeq] = useState([] as Record[]);
+  const [seq, setSeq] = useState([] as RecordList);
 
   const onMouseDown = useCallback(() => {
     setRecordMode(true);
@@ -41,12 +41,25 @@ const useMouseCapture = (addRecordList: (recordList: Record[]) => void) => {
   return [recordMode, onMouseDown, onMouseMove, onMouseUp] as const;
 };
 
+const useContext = (ref: React.MutableRefObject<HTMLCanvasElement | null>) => {
+  const canvas = ref.current;
+  if (canvas == null) {
+    throw new Error("canvas not found");
+  }
+  const ctx = canvas.getContext("2d");
+  if (ctx == null) {
+    throw new Error("context not found");
+  }
+  return ctx;
+};
+
 interface CanvasProps {
   width: number;
   height: number;
   room: Room;
   sensors: Sensor[];
-  addRecordList(recordList: Record[]): void;
+  addRecordList(recordList: RecordList): void;
+  recordLists: RecordList[];
 }
 
 const Canvas: React.FunctionComponent<CanvasProps> = ({
@@ -55,6 +68,7 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
   room,
   sensors,
   addRecordList,
+  recordLists,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
@@ -75,14 +89,7 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
   );
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (canvas == null) {
-      throw new Error("canvas not found");
-    }
-    const ctx = canvas.getContext("2d");
-    if (ctx == null) {
-      throw new Error("context not found");
-    }
+    const ctx = useContext(ref);
     ctx.canvas.height = height;
     ctx.canvas.width = width;
     resetCanvas(ctx);
@@ -93,14 +100,7 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
       if (!recordMode) {
         return;
       }
-      const canvas = ref.current;
-      if (canvas == null) {
-        throw new Error("canvas not found");
-      }
-      const ctx = canvas.getContext("2d");
-      if (ctx == null) {
-        throw new Error("context not found");
-      }
+      const ctx = useContext(ref);
       resetCanvas(ctx);
       const resident = new Resident({
         center: { x: event.clientX, y: event.clientY },
@@ -119,26 +119,24 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
 
   const onMouseUp = useCallback(() => {
     onMouseUpMC();
-    const canvas = ref.current;
-    if (canvas == null) {
-      throw new Error("canvas not found");
-    }
-    const ctx = canvas.getContext("2d");
-    if (ctx == null) {
-      throw new Error("context not found");
-    }
+    const ctx = useContext(ref);
     resetCanvas(ctx);
   }, [ref, onMouseUpMC, resetCanvas]);
 
   return (
-    <canvas
-      onMouseUp={onMouseUp}
-      onMouseDown={onMouseDownMC}
-      onMouseMove={onMouseMove}
-      onMouseLeave={onMouseUp}
-      style={{ border: "solid 1px black" }}
-      ref={ref}
-    />
+    <>
+      <canvas
+        onMouseUp={onMouseUp}
+        onMouseDown={onMouseDownMC}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseUp}
+        style={{ border: "solid 1px black" }}
+        ref={ref}
+      />
+      {recordLists.map((recordList, i) => (
+        <RecordList key={i} value={recordList} />
+      ))}
+    </>
   );
 };
 
@@ -155,6 +153,7 @@ interface Record {
   point: Point;
   messages: Message[];
 }
+type RecordList = Record[];
 
 interface Point {
   x: number;
@@ -277,7 +276,7 @@ class Sensor implements Object {
   }
 }
 
-const RecordList: FunctionComponent<{ value: Record[] }> = ({ value }) => {
+const RecordList: FunctionComponent<{ value: RecordList }> = ({ value }) => {
   const [isOpen, setIsOpen] = useState(false);
   const toggle = useCallback(() => setIsOpen((current) => !current), [
     setIsOpen,
@@ -293,9 +292,9 @@ const RecordList: FunctionComponent<{ value: Record[] }> = ({ value }) => {
 };
 
 export const App = () => {
-  const [recordLists, setRecordLists] = useState([] as Record[][]);
+  const [recordLists, setRecordLists] = useState([] as RecordList[]);
   const addRecordList = useCallback(
-    (recordList: Record[]) => setRecordLists((prev) => [...prev, recordList]),
+    (recordList: RecordList) => setRecordLists((prev) => [...prev, recordList]),
     [setRecordLists]
   );
   const room = new Room({
@@ -311,17 +310,13 @@ export const App = () => {
   ];
 
   return (
-    <>
-      <Canvas
-        width={500}
-        height={500}
-        room={room}
-        sensors={sensors}
-        addRecordList={addRecordList}
-      />
-      {recordLists.map((recordList, i) => (
-        <RecordList key={i} value={recordList} />
-      ))}
-    </>
+    <Canvas
+      width={500}
+      height={500}
+      room={room}
+      sensors={sensors}
+      addRecordList={addRecordList}
+      recordLists={recordLists}
+    />
   );
 };
