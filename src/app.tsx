@@ -35,18 +35,14 @@ const useMouseCapture = (addPath: (path: Point[]) => void) => {
     setRecordMode(false);
   }, [seq, addPath, setRecordMode]);
 
-  return [
-    onMouseDown,
-    onMouseMove,
-    onMouseUp,
-    onMouseUp /* onMouseLeave */,
-  ] as const;
+  return [recordMode, onMouseDown, onMouseMove, onMouseUp] as const;
 };
 
 interface CanvasProps {
   width: number;
   height: number;
   room: Room;
+  sensors: Sensor[];
   addPath(path: Point[]): void;
 }
 
@@ -54,12 +50,25 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
   height,
   width,
   room,
+  sensors,
   addPath,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
-  const [onMouseDown, onMouseMove, onMouseUp, onMouseLeave] = useMouseCapture(
-    addPath
+  const [
+    recordMode,
+    onMouseDownMC,
+    onMouseMoveMC,
+    onMouseUpMC,
+  ] = useMouseCapture(addPath);
+
+  const resetCanvas = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      ctx.clearRect(0, 0, width, height);
+      room.draw(ctx);
+      sensors.forEach((s) => s.draw(ctx));
+    },
+    [width, height, room, sensors]
   );
 
   useEffect(() => {
@@ -73,16 +82,54 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
     }
     ctx.canvas.height = height;
     ctx.canvas.width = width;
+    resetCanvas(ctx);
+  }, [ref, height, width, resetCanvas]);
 
-    room.draw(ctx);
-  }, [ref, height, width]);
+  const onMouseMove = useCallback(
+    (event: MouseEvent<HTMLCanvasElement>) => {
+      onMouseMoveMC(event);
+      if (!recordMode) {
+        return;
+      }
+      const canvas = ref.current;
+      if (canvas == null) {
+        throw new Error("canvas not found");
+      }
+      const ctx = canvas.getContext("2d");
+      if (ctx == null) {
+        throw new Error("context not found");
+      }
+      resetCanvas(ctx);
+      const resident = new Resident({
+        center: { x: event.clientX, y: event.clientY },
+        radius: 20,
+        color: "blue",
+      });
+      resident.draw(ctx);
+      sensors.forEach((s) => s.probe(resident));
+    },
+    [ref, recordMode, onMouseMoveMC, sensors, resetCanvas]
+  );
+
+  const onMouseUp = useCallback(() => {
+    onMouseUpMC();
+    const canvas = ref.current;
+    if (canvas == null) {
+      throw new Error("canvas not found");
+    }
+    const ctx = canvas.getContext("2d");
+    if (ctx == null) {
+      throw new Error("context not found");
+    }
+    resetCanvas(ctx);
+  }, [ref, onMouseUpMC, resetCanvas]);
 
   return (
     <canvas
       onMouseUp={onMouseUp}
-      onMouseDown={onMouseDown}
+      onMouseDown={onMouseDownMC}
       onMouseMove={onMouseMove}
-      onMouseLeave={onMouseLeave}
+      onMouseLeave={onMouseUp}
       style={{ border: "solid 1px black" }}
       ref={ref}
     />
@@ -107,23 +154,14 @@ interface ResidentProps extends BoundingCircle {
   color: string;
 }
 class Resident implements Object {
-  static vectors = [
-    [0, -1] as const,
-    [0, +1] as const,
-    [-1, 0] as const,
-    [+1, 0] as const,
-  ];
-
-  private center: ResidentProps["center"];
-  private radius: ResidentProps["radius"];
+  public center: ResidentProps["center"];
+  public radius: ResidentProps["radius"];
   private color: ResidentProps["color"];
-  private lastDirection: number;
 
   public constructor({ center, radius, color }: ResidentProps) {
     this.center = center;
     this.radius = radius;
     this.color = color;
-    this.lastDirection = 0;
   }
 
   public draw(ctx: CanvasRenderingContext2D) {
@@ -133,26 +171,6 @@ class Resident implements Object {
     ctx.arc(this.center.x, this.center.y, this.radius, 0, Math.PI * 2, true);
     ctx.fill();
     ctx.restore();
-  }
-
-  public move({ x: minX, y: minY }: Point, { x: maxX, y: maxY }: Point) {
-    const direction = Math.floor(Math.random() * (Resident.vectors.length + 1));
-    const [dx, dy] = [
-      ...Resident.vectors,
-      Resident.vectors[this.lastDirection],
-    ][direction];
-    this.lastDirection =
-      direction < Resident.vectors.length ? direction : this.lastDirection;
-    const newX = this.center.x + dx;
-    const newY = this.center.y + dy;
-    console.log(dx, dy);
-    if (minX < newX && newX < maxX) {
-      this.center.x += dx;
-    }
-    if (minY < newY && newY < maxY) {
-      this.center.y += dy;
-    }
-    console.log(this.center);
   }
 }
 
@@ -197,18 +215,21 @@ class Room implements Object {
 }
 
 interface SensorProps {
+  id: string;
   x: number;
   y: number;
   r: number;
   color: string;
 }
 class Sensor implements Object {
+  private id: SensorProps["id"];
   private x: SensorProps["x"];
   private y: SensorProps["y"];
   private r: SensorProps["r"];
   private color: SensorProps["color"];
 
-  public constructor({ x, y, r, color }: SensorProps) {
+  public constructor({ id, x, y, r, color }: SensorProps) {
+    this.id = id;
     this.x = x;
     this.y = y;
     this.r = r;
@@ -218,6 +239,8 @@ class Sensor implements Object {
   public draw(ctx: CanvasRenderingContext2D) {
     ctx.save();
     ctx.beginPath();
+    ctx.font = "24px serif";
+    ctx.fillText(this.id, this.x - 12, this.y + 12);
     ctx.strokeStyle = this.color;
     ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2, true);
     ctx.stroke();
@@ -225,10 +248,11 @@ class Sensor implements Object {
   }
 
   public probe({ center, radius }: BoundingCircle) {
-    return (
-      Math.pow(this.r - radius, 2) >=
-      Math.pow(this.x - center.x, 2) + Math.pow(this.y - center.y, 2)
-    );
+    const result =
+      Math.pow(this.r + radius, 2) >=
+      Math.pow(this.x - center.x, 2) + Math.pow(this.y - center.y, 2);
+    console.log(this.id, result);
+    return result;
   }
 }
 
@@ -253,16 +277,27 @@ export const App = () => {
     (path: Point[]) => setPaths((prev) => [...prev, path]),
     [setPaths]
   );
-
   const room = new Room({
     topLeft: { x: 100, y: 100 },
     bottomRight: { x: 400, y: 400 },
     color: "gray",
   });
+  const sensors = [
+    new Sensor({ id: "s0", x: 175, y: 175, r: 80, color: "red" }),
+    new Sensor({ id: "s1", x: 325, y: 175, r: 80, color: "red" }),
+    new Sensor({ id: "s2", x: 175, y: 325, r: 80, color: "red" }),
+    new Sensor({ id: "s3", x: 325, y: 325, r: 80, color: "red" }),
+  ];
 
   return (
     <>
-      <Canvas width={500} height={500} room={room} addPath={addPath} />
+      <Canvas
+        width={500}
+        height={500}
+        room={room}
+        sensors={sensors}
+        addPath={addPath}
+      />
       {paths.map((path, i) => (
         <Path key={i} value={path} />
       ))}
