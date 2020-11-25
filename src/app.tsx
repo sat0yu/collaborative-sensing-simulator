@@ -1,10 +1,47 @@
 import React, {
+  FunctionComponent,
   MouseEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
+
+const useMouseCapture = (addPath: (path: Point[]) => void) => {
+  const [recordMode, setRecordMode] = useState(false);
+  const [seq, setSeq] = useState([] as Point[]);
+
+  const onMouseDown = useCallback(() => {
+    setRecordMode(true);
+    setSeq([]);
+  }, [setRecordMode, setSeq]);
+
+  const onMouseMove = useCallback(
+    ({ clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>) => {
+      if (!recordMode) {
+        return;
+      }
+      setSeq((prev) => [...prev, { x, y }]);
+    },
+    [recordMode, setSeq]
+  );
+
+  const onMouseUp = useCallback(() => {
+    if (seq.length > 0) {
+      // ignore paths which consists of a single point
+      seq.length > 1 && addPath(seq);
+      setSeq([]);
+    }
+    setRecordMode(false);
+  }, [seq, addPath, setRecordMode]);
+
+  return [
+    onMouseDown,
+    onMouseMove,
+    onMouseUp,
+    onMouseUp /* onMouseLeave */,
+  ] as const;
+};
 
 interface CanvasProps {
   width: number;
@@ -21,8 +58,9 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
-  const [recordMode, setRecordMode] = useState(false);
-  const [seq, setSeq] = useState([] as Point[]);
+  const [onMouseDown, onMouseMove, onMouseUp, onMouseLeave] = useMouseCapture(
+    addPath
+  );
 
   useEffect(() => {
     const canvas = ref.current;
@@ -39,38 +77,12 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
     room.draw(ctx);
   }, [ref, height, width]);
 
-  const onMouseDown = useCallback(() => {
-    setRecordMode(true);
-    setSeq([]);
-  }, [setRecordMode, setSeq]);
-
-  const onMouseMove = useCallback(
-    ({ clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>) => {
-      if (!recordMode) {
-        // console.log("not record mode");
-        return;
-      }
-      // console.log(recordMode, x, y);
-      setSeq((prev) => [...prev, { x, y }]);
-    },
-    [recordMode, setSeq]
-  );
-
-  const onMouseUp = useCallback(() => {
-    if (seq.length > 0) {
-      // ignore paths which consists of a single point
-      seq.length > 1 && addPath(seq);
-      setSeq([]);
-    }
-    setRecordMode(false);
-  }, [seq, addPath, setRecordMode]);
-
   return (
     <canvas
       onMouseUp={onMouseUp}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
-      onMouseLeave={onMouseUp}
+      onMouseLeave={onMouseLeave}
       style={{ border: "solid 1px black" }}
       ref={ref}
     />
@@ -220,6 +232,21 @@ class Sensor implements Object {
   }
 }
 
+const Path: FunctionComponent<{ value: Point[] }> = ({ value }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const toggle = useCallback(() => setIsOpen((current) => !current), [
+    setIsOpen,
+  ]);
+  return (
+    <div>
+      <p onClick={toggle}>
+        {isOpen ? "▼" : "▶"} path length: {value.length}
+      </p>
+      {isOpen && <p>{JSON.stringify(value)}</p>}
+    </div>
+  );
+};
+
 export const App = () => {
   const [paths, setPaths] = useState([] as Point[][]);
   const addPath = useCallback(
@@ -237,7 +264,7 @@ export const App = () => {
     <>
       <Canvas width={500} height={500} room={room} addPath={addPath} />
       {paths.map((path, i) => (
-        <p key={i}>{JSON.stringify(path)}</p>
+        <Path key={i} value={path} />
       ))}
     </>
   );
