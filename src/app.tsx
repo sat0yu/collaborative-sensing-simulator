@@ -7,9 +7,9 @@ import React, {
   useState,
 } from "react";
 
-const useMouseCapture = (addPath: (path: Point[]) => void) => {
+const useMouseCapture = (addRecordList: (recordList: Record[]) => void) => {
   const [recordMode, setRecordMode] = useState(false);
-  const [seq, setSeq] = useState([] as Point[]);
+  const [seq, setSeq] = useState([] as Record[]);
 
   const onMouseDown = useCallback(() => {
     setRecordMode(true);
@@ -17,11 +17,14 @@ const useMouseCapture = (addPath: (path: Point[]) => void) => {
   }, [setRecordMode, setSeq]);
 
   const onMouseMove = useCallback(
-    ({ clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>) => {
+    (
+      { clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>,
+      messages: Message[] = []
+    ) => {
       if (!recordMode) {
         return;
       }
-      setSeq((prev) => [...prev, { x, y }]);
+      setSeq((prev) => [...prev, { point: { x, y }, messages }]);
     },
     [recordMode, setSeq]
   );
@@ -29,11 +32,11 @@ const useMouseCapture = (addPath: (path: Point[]) => void) => {
   const onMouseUp = useCallback(() => {
     if (seq.length > 0) {
       // ignore paths which consists of a single point
-      seq.length > 1 && addPath(seq);
+      seq.length > 1 && addRecordList(seq);
       setSeq([]);
     }
     setRecordMode(false);
-  }, [seq, addPath, setRecordMode]);
+  }, [seq, addRecordList, setRecordMode]);
 
   return [recordMode, onMouseDown, onMouseMove, onMouseUp] as const;
 };
@@ -43,7 +46,7 @@ interface CanvasProps {
   height: number;
   room: Room;
   sensors: Sensor[];
-  addPath(path: Point[]): void;
+  addRecordList(recordList: Record[]): void;
 }
 
 const Canvas: React.FunctionComponent<CanvasProps> = ({
@@ -51,7 +54,7 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
   width,
   room,
   sensors,
-  addPath,
+  addRecordList,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
@@ -60,7 +63,7 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
     onMouseDownMC,
     onMouseMoveMC,
     onMouseUpMC,
-  ] = useMouseCapture(addPath);
+  ] = useMouseCapture(addRecordList);
 
   const resetCanvas = useCallback(
     (ctx: CanvasRenderingContext2D) => {
@@ -87,7 +90,6 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
 
   const onMouseMove = useCallback(
     (event: MouseEvent<HTMLCanvasElement>) => {
-      onMouseMoveMC(event);
       if (!recordMode) {
         return;
       }
@@ -106,7 +108,11 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
         color: "blue",
       });
       resident.draw(ctx);
-      sensors.forEach((s) => s.probe(resident));
+      const messages = sensors.reduce((acc, s) => {
+        const result = s.probe(resident);
+        return result == null ? acc : [...acc, { id: s.id, body: result }];
+      }, [] as Message[]);
+      onMouseMoveMC(event, messages);
     },
     [ref, recordMode, onMouseMoveMC, sensors, resetCanvas]
   );
@@ -138,6 +144,16 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
 
 interface Object {
   draw(ctx: CanvasRenderingContext2D): void;
+}
+
+interface Message {
+  id: string;
+  body: any;
+}
+
+interface Record {
+  point: Point;
+  messages: Message[];
 }
 
 interface Point {
@@ -222,11 +238,12 @@ interface SensorProps {
   color: string;
 }
 class Sensor implements Object {
-  private id: SensorProps["id"];
+  public id: SensorProps["id"];
   private x: SensorProps["x"];
   private y: SensorProps["y"];
   private r: SensorProps["r"];
   private color: SensorProps["color"];
+  private lastState: boolean;
 
   public constructor({ id, x, y, r, color }: SensorProps) {
     this.id = id;
@@ -234,6 +251,7 @@ class Sensor implements Object {
     this.y = y;
     this.r = r;
     this.color = color;
+    this.lastState = false;
   }
 
   public draw(ctx: CanvasRenderingContext2D) {
@@ -252,11 +270,14 @@ class Sensor implements Object {
       Math.pow(this.r + radius, 2) >=
       Math.pow(this.x - center.x, 2) + Math.pow(this.y - center.y, 2);
     console.log(this.id, result);
-    return result;
+    if (this.lastState == result) {
+      return null;
+    }
+    return (this.lastState = result);
   }
 }
 
-const Path: FunctionComponent<{ value: Point[] }> = ({ value }) => {
+const RecordList: FunctionComponent<{ value: Record[] }> = ({ value }) => {
   const [isOpen, setIsOpen] = useState(false);
   const toggle = useCallback(() => setIsOpen((current) => !current), [
     setIsOpen,
@@ -264,7 +285,7 @@ const Path: FunctionComponent<{ value: Point[] }> = ({ value }) => {
   return (
     <div>
       <p onClick={toggle}>
-        {isOpen ? "▼" : "▶"} path length: {value.length}
+        {isOpen ? "▼" : "▶"} records length: {value.length}
       </p>
       {isOpen && <p>{JSON.stringify(value)}</p>}
     </div>
@@ -272,10 +293,10 @@ const Path: FunctionComponent<{ value: Point[] }> = ({ value }) => {
 };
 
 export const App = () => {
-  const [paths, setPaths] = useState([] as Point[][]);
-  const addPath = useCallback(
-    (path: Point[]) => setPaths((prev) => [...prev, path]),
-    [setPaths]
+  const [recordLists, setRecordLists] = useState([] as Record[][]);
+  const addRecordList = useCallback(
+    (recordList: Record[]) => setRecordLists((prev) => [...prev, recordList]),
+    [setRecordLists]
   );
   const room = new Room({
     topLeft: { x: 100, y: 100 },
@@ -296,10 +317,10 @@ export const App = () => {
         height={500}
         room={room}
         sensors={sensors}
-        addPath={addPath}
+        addRecordList={addRecordList}
       />
-      {paths.map((path, i) => (
-        <Path key={i} value={path} />
+      {recordLists.map((recordList, i) => (
+        <RecordList key={i} value={recordList} />
       ))}
     </>
   );
