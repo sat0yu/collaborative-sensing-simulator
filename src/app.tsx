@@ -1,30 +1,28 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, {
+  MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 interface CanvasProps {
   width: number;
   height: number;
-  resident: Resident;
   room: Room;
-  sensors: Sensor[];
+  addPath(path: Point[]): void;
 }
 
 const Canvas: React.FunctionComponent<CanvasProps> = ({
   height,
   width,
-  resident,
   room,
-  sensors,
+  addPath,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
-  const [minPoint, maxPoint] = useMemo(
-    () =>
-      [
-        { x: 0, y: 0 },
-        { x: width, y: height },
-      ] as const,
-    [height, width]
-  );
+  const [recordMode, setRecordMode] = useState(false);
+  const [seq, setSeq] = useState([] as Point[]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -37,30 +35,46 @@ const Canvas: React.FunctionComponent<CanvasProps> = ({
     }
     ctx.canvas.height = height;
     ctx.canvas.width = width;
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, width, height);
 
     room.draw(ctx);
-    sensors.forEach((s) => s.draw(ctx));
-  }, [ref, height, width, sensors]);
+  }, [ref, height, width]);
 
-  useEffect(() => {
-    const canvas = ref.current;
-    if (canvas == null) {
-      throw new Error("canvas not found");
-    }
-    const ctx = canvas.getContext("2d");
-    if (ctx == null) {
-      throw new Error("context not found");
-    }
-    const timer = setInterval(() => {
-      resident.move(minPoint, maxPoint);
-      resident.draw(ctx);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [ref, resident, minPoint, maxPoint]);
+  const onMouseDown = useCallback(() => {
+    setRecordMode(true);
+    setSeq([]);
+  }, [setRecordMode, setSeq]);
 
-  return <canvas ref={ref} />;
+  const onMouseMove = useCallback(
+    ({ clientX: x, clientY: y }: MouseEvent<HTMLCanvasElement>) => {
+      if (!recordMode) {
+        // console.log("not record mode");
+        return;
+      }
+      // console.log(recordMode, x, y);
+      setSeq((prev) => [...prev, { x, y }]);
+    },
+    [recordMode, setSeq]
+  );
+
+  const onMouseUp = useCallback(() => {
+    if (seq.length > 0) {
+      // ignore paths which consists of a single point
+      seq.length > 1 && addPath(seq);
+      setSeq([]);
+    }
+    setRecordMode(false);
+  }, [seq, addPath, setRecordMode]);
+
+  return (
+    <canvas
+      onMouseUp={onMouseUp}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseUp}
+      style={{ border: "solid 1px black" }}
+      ref={ref}
+    />
+  );
 };
 
 interface Object {
@@ -136,8 +150,9 @@ interface RoomProps {
   color: string;
 }
 class Room implements Object {
-  private topLeft: RoomProps["topLeft"];
-  private bottomRight: RoomProps["bottomRight"];
+  public topLeft: RoomProps["topLeft"];
+  public bottomRight: RoomProps["bottomRight"];
+
   private color: RoomProps["color"];
 
   public constructor({ topLeft, bottomRight, color }: RoomProps) {
@@ -206,30 +221,24 @@ class Sensor implements Object {
 }
 
 export const App = () => {
-  const resident = new Resident({
-    center: { x: 250, y: 250 },
-    radius: 25,
-    color: "blue",
-  });
+  const [paths, setPaths] = useState([] as Point[][]);
+  const addPath = useCallback(
+    (path: Point[]) => setPaths((prev) => [...prev, path]),
+    [setPaths]
+  );
+
   const room = new Room({
     topLeft: { x: 100, y: 100 },
     bottomRight: { x: 400, y: 400 },
-    color: "white",
+    color: "gray",
   });
-  const sensors = [
-    new Sensor({ x: 175, y: 175, r: 80, color: "red" }),
-    new Sensor({ x: 325, y: 175, r: 80, color: "red" }),
-    new Sensor({ x: 175, y: 325, r: 80, color: "red" }),
-    new Sensor({ x: 325, y: 325, r: 80, color: "red" }),
-  ];
 
   return (
-    <Canvas
-      width={500}
-      height={500}
-      resident={resident}
-      room={room}
-      sensors={sensors}
-    />
+    <>
+      <Canvas width={500} height={500} room={room} addPath={addPath} />
+      {paths.map((path, i) => (
+        <p key={i}>{JSON.stringify(path)}</p>
+      ))}
+    </>
   );
 };
