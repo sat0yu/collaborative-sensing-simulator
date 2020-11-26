@@ -5,6 +5,26 @@ import { Room } from "./room";
 import { Sensor } from "./sensor";
 import { Simulator } from "./simulator";
 
+class MaxFunc {
+  public name: string;
+  public states: Map<string, boolean>;
+
+  public constructor(name: string, sensorIds: string[]) {
+    this.name = name;
+    this.states = new Map(sensorIds.map((id) => [id, false]));
+  }
+
+  public probe({ messages }: RecordList[number]) {
+    messages.forEach(({ id, body }) => {
+      if (!this.states.has(id)) {
+        return;
+      }
+      this.states.set(id, body);
+    });
+    return [...this.states.values()].some((v) => v);
+  }
+}
+
 export const App = () => {
   const [recordLists, setRecordLists] = useState([] as RecordList[]);
   const addRecordList = useCallback(
@@ -22,6 +42,7 @@ export const App = () => {
     new Sensor({ id: "s2", x: 175, y: 325, r: 80, color: "red" }),
     new Sensor({ id: "s3", x: 325, y: 325, r: 80, color: "red" }),
   ];
+  const methods = [new MaxFunc("Max Function", ["s0", "s1", "s2", "s3"])];
 
   return (
     <>
@@ -44,6 +65,7 @@ export const App = () => {
           room={room}
           sensors={sensors}
           recordLists={recordLists}
+          methods={methods}
         />
       </section>
     </>

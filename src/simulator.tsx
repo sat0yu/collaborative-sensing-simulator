@@ -22,12 +22,18 @@ const useContext = (ref: React.MutableRefObject<HTMLCanvasElement | null>) => {
   return ctx;
 };
 
+interface Method {
+  name: string;
+  probe(record: RecordList[number]): boolean;
+}
+
 interface SimulatorProps {
   width: number;
   height: number;
   room: Room;
   sensors: Sensor[];
   recordLists: RecordList[];
+  methods: Method[];
 }
 
 export const Simulator: React.FunctionComponent<SimulatorProps> = ({
@@ -36,11 +42,13 @@ export const Simulator: React.FunctionComponent<SimulatorProps> = ({
   room,
   sensors,
   recordLists,
+  methods,
 }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const [isPresent, setIsPresent] = useState(false);
   const [recordIdx, setRecordIdx] = useState(0);
   const [selectedRecordListIdx, setSelectedRecordListIdx] = useState(0);
+  const [selectedMethodIdx, setSelectedMethodIdx] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
 
   const resetCanvas = useCallback(
@@ -65,6 +73,7 @@ export const Simulator: React.FunctionComponent<SimulatorProps> = ({
   }, [ref, height, width, resetCanvas]);
 
   const currentRecordList = recordLists[selectedRecordListIdx] || [];
+  const currentMethod = methods[selectedMethodIdx];
 
   useEffect(() => {
     if (!isSimulating) {
@@ -85,17 +94,17 @@ export const Simulator: React.FunctionComponent<SimulatorProps> = ({
       color: "blue",
     });
     resident.draw(ctx);
+    setIsPresent(currentMethod.probe(currentRecord));
     setTimeout(() => setRecordIdx((prev) => prev + 1), 100);
   }, [
     isSimulating,
     recordIdx,
     currentRecordList,
+    currentMethod,
     resetCanvas,
     setRecordIdx,
     setIsSimulating,
   ]);
-
-  const methods = ["max()", "avg()", "latest()"];
 
   const isUnavailable = isSimulating || currentRecordList.length == 0;
 
@@ -116,9 +125,17 @@ export const Simulator: React.FunctionComponent<SimulatorProps> = ({
             >{`records length: ${recordList.length}`}</option>
           ))}
         </select>
-        <select disabled={isUnavailable}>
+        <select
+          disabled={isUnavailable}
+          onChange={({ target }: ChangeEvent<HTMLSelectElement>) =>
+            setSelectedMethodIdx(+target.value)
+          }
+          value={selectedMethodIdx}
+        >
           {methods.map((method, i) => (
-            <option key={i}>{method}</option>
+            <option key={i} value={i}>
+              {method.name}
+            </option>
           ))}
         </select>
         <button onClick={onClickStart} disabled={isUnavailable}>
