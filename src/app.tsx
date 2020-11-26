@@ -22,6 +22,16 @@ import { Sensor } from "./sensor";
 import { Simulator } from "./simulator";
 
 export const App = () => {
+  const [showConfiguration, setShowConfiguration] = useState(false);
+  const toggleShowConfiguration = useCallback(
+    () => setShowConfiguration((prev) => !prev),
+    [setShowConfiguration]
+  );
+  const [showSimulator, setShowSimulator] = useState(false);
+  const toggleShowSimulator = useCallback(
+    () => setShowSimulator((prev) => !prev),
+    [setShowSimulator]
+  );
   const [recordLists, setRecordLists] = useState([] as RecordList[]);
   const addRecordList = useCallback(
     (recordList: RecordList) => setRecordLists((prev) => [...prev, recordList]),
@@ -75,36 +85,42 @@ export const App = () => {
   return (
     <>
       <section>
-        <h1>Configuration</h1>
-        <CanvasForm
-          width={canvasSize[0]}
-          height={canvasSize[1]}
-          setWidth={setCanvasWidth}
-          setHeight={setCanvasHeight}
-        />
-        <RoomForm
-          left={roomPosSize[0]}
-          top={roomPosSize[1]}
-          width={roomPosSize[2]}
-          height={roomPosSize[3]}
-          setLeft={setRoomLeft}
-          setTop={setRoomTop}
-          setWidth={setRoomWidth}
-          setHeight={setRoomHeight}
-        />
-        <SensorsForm
-          sensors={sensors}
-          sensorAttr={sensorAttr}
-          setSensorId={setSensorId}
-          setSensorX={setSensorX}
-          setSensorY={setSensorY}
-          setSensorR={setSensorR}
-          isValidAttr={isValidAttr}
-          addSensor={addSensor}
-          removeSensor={removeSensor}
-          canvasWidth={canvasSize[0]}
-          canvasHeight={canvasSize[1]}
-        />
+        <h1 onClick={toggleShowConfiguration}>
+          Configuration {showConfiguration ? "▼" : "▶"}
+        </h1>
+        {showConfiguration ? (
+          <>
+            <CanvasForm
+              width={canvasSize[0]}
+              height={canvasSize[1]}
+              setWidth={setCanvasWidth}
+              setHeight={setCanvasHeight}
+            />
+            <RoomForm
+              left={roomPosSize[0]}
+              top={roomPosSize[1]}
+              width={roomPosSize[2]}
+              height={roomPosSize[3]}
+              setLeft={setRoomLeft}
+              setTop={setRoomTop}
+              setWidth={setRoomWidth}
+              setHeight={setRoomHeight}
+            />
+            <SensorsForm
+              sensors={sensors}
+              sensorAttr={sensorAttr}
+              setSensorId={setSensorId}
+              setSensorX={setSensorX}
+              setSensorY={setSensorY}
+              setSensorR={setSensorR}
+              isValidAttr={isValidAttr}
+              addSensor={addSensor}
+              removeSensor={removeSensor}
+              canvasWidth={canvasSize[0]}
+              canvasHeight={canvasSize[1]}
+            />
+          </>
+        ) : null}
       </section>
       <section>
         <h1>Recorder</h1>
@@ -118,15 +134,19 @@ export const App = () => {
         />
       </section>
       <section>
-        <h1>Simulator</h1>
-        <Simulator
-          width={canvasSize[0]}
-          height={canvasSize[1]}
-          room={room}
-          sensors={sensors}
-          recordLists={recordLists}
-          methods={methods}
-        />
+        <h1 onClick={toggleShowSimulator}>
+          Simulator {showSimulator ? "▼" : "▶"}
+        </h1>
+        {showSimulator ? (
+          <Simulator
+            width={canvasSize[0]}
+            height={canvasSize[1]}
+            room={room}
+            sensors={sensors}
+            recordLists={recordLists}
+            methods={methods}
+          />
+        ) : null}
       </section>
     </>
   );
