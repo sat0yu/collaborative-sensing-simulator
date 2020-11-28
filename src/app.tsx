@@ -22,6 +22,11 @@ import { Sensor } from "./sensor";
 import { Simulator } from "./simulator";
 
 export const App = () => {
+  const [showHowToUse, setShowHowToUse] = useState(false);
+  const toggleShowHowToUse = useCallback(
+    () => setShowHowToUse((prev) => !prev),
+    [setShowHowToUse]
+  );
   const [showConfiguration, setShowConfiguration] = useState(false);
   const toggleShowConfiguration = useCallback(
     () => setShowConfiguration((prev) => !prev),
@@ -84,6 +89,34 @@ export const App = () => {
 
   return (
     <>
+      <section>
+        <h1 onClick={toggleShowHowToUse}>
+          How to use {showHowToUse ? "▼" : "▶"}
+        </h1>
+        {showHowToUse ? (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              backgroundColor: "rgb(0, 0, 0, 0.5)",
+            }}
+            onClick={toggleShowHowToUse}
+          >
+            <p
+              style={{
+                margin: "10% auto",
+                width: "712px",
+              }}
+            >
+              <img src="https://user-images.githubusercontent.com/1370842/100489911-bba67c80-315a-11eb-9433-353cefba8bcd.gif" />
+            </p>
+          </div>
+        ) : null}
+      </section>
+
       <section>
         <h1 onClick={toggleShowConfiguration}>
           Configuration {showConfiguration ? "▼" : "▶"}
