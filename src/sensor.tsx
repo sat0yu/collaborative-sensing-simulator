@@ -10,9 +10,9 @@ interface SensorProps {
 
 export class Sensor implements Object {
   public id: SensorProps["id"];
-  private x: SensorProps["x"];
-  private y: SensorProps["y"];
-  private r: SensorProps["r"];
+  public x: SensorProps["x"];
+  public y: SensorProps["y"];
+  public r: SensorProps["r"];
   private color: SensorProps["color"];
   private lastState: boolean;
 

@@ -222,13 +222,13 @@ export const SensorsForm: FunctionComponent<SensorsFormProps> = ({
   <section>
     <h2>Sensors</h2>
     <ul>
-      {sensors.map((s) => (
-        <li key={s.id}>
-          {s.id}{" "}
+      {sensors.map(({ id, x, y, r }) => (
+        <li key={id}>
+          {id}:{JSON.stringify({ x, y, r })}{" "}
           <input
             type="button"
             value="remove"
-            onClick={() => removeSensor(s.id)}
+            onClick={() => removeSensor(id)}
           />
         </li>
       ))}
