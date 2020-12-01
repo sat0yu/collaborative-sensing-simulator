@@ -120,15 +120,26 @@ export const Recorder: React.FunctionComponent<RecorderProps> = ({
 
   const onMouseMove = useCallback(
     (event: MouseEvent<HTMLCanvasElement>) => {
-      if (!recordMode) {
-        return;
-      }
       const ctx = useContext(ref);
       resetCanvas(ctx);
       const {
         left: offsetX,
         top: offsetY,
       } = ctx.canvas.getBoundingClientRect();
+      if (!recordMode) {
+        // show the pointer coordinates
+        const x = Math.round(event.clientX - offsetX);
+        const y = Math.round(event.clientY - offsetY);
+        ctx.save();
+        ctx.font = "18px serif";
+        ctx.fillText(
+          `(${x},${y})`,
+          x > width >> 1 ? x - 64 : x,
+          y > height >> 1 ? y - 8 : y + 16
+        );
+        ctx.restore();
+        return;
+      }
       const resident = new Resident({
         center: {
           x: event.clientX - offsetX,
